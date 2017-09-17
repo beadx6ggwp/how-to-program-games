@@ -38,10 +38,19 @@ const PLAYER_DIST_FROM_CENTER_BEFORE_CAMERA_PAN_Y = 100;
 var ballX = 75;
 var ballY = 75;
 var ballRadius = 10;
-var ballSpeed = 5;
+var ballSpeedX = 0;
+var ballSpeedY = 0;
+var ballSpeed = 1;
+var ballMaxSp = 5;
+var onGround = false;
 
-var brick_width = 40;
-var brick_height = 40;
+var JUMP_POWER = 5;
+var GROUND_FRICTION = 0.8;
+var AIR_RESISTANCE = 0.95;
+var GRAVITY = 0.3;
+
+var brick_width = 60;
+var brick_height = 60;
 var brick_cols = 20;
 var brick_rows = 15;
 var brick_gap = 1;
@@ -53,11 +62,11 @@ var brickGrid = [
     1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1,
     1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1,
     1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1,
-    1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1,
-    1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1,
-    1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
-    1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1,
-    1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1,
+    1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1,
+    1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
+    1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1,
+    1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1,
     1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1,
     1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
@@ -75,15 +84,15 @@ function main() {
 
 function update(dt) {
     ballMove();
-    //cameraFollow();
-    instantCamFollow();
+    cameraFollow();
+    //instantCamFollow();
 }
 
 
 function draw(ctx) {
     ctx.save();
 
-    //ctx.translate(-camPanX, -camPanY);
+    ctx.translate(-camPanX, -camPanY);
 
     //drawBrick();
     drawBrickOnScrean()
@@ -103,25 +112,56 @@ function draw(ctx) {
 }
 
 function ballMove() {
-    var nextX = ballX;
-    var nextY = ballY;
+    if (onGround) {
+        ballSpeedX *= GROUND_FRICTION;
+    }
+    else {
+        ballSpeedX *= AIR_RESISTANCE;
+        ballSpeedY += GRAVITY;
+        if (ballSpeedY > brick_height) {
+            ballSpeedY = brick_height;// max gravity acc
+        }
+    }
     if (keys[37]) {
-        nextX -= ballSpeed;
+        ballSpeedX -= ballSpeed;
+        if (ballMaxSp < -ballSpeedX) ballSpeedX = - ballMaxSp;
     }
     if (keys[39]) {
-        nextX += ballSpeed;
+        ballSpeedX += ballSpeed;
+        if (ballSpeedX > ballMaxSp) ballSpeedX = ballMaxSp;
     }
-    if (keys[38]) {
-        nextY -= ballSpeed;
-    }
-    if (keys[40]) {
-        nextY += ballSpeed;
+    if (keys[38] && onGround) {
+        ballSpeedY -= JUMP_POWER;
     }
 
-    if (isBrickAtPos(nextX, nextY) == 0) {
-        ballX = nextX;
-        ballY = nextY;
+    // top
+    if (ballSpeedY < 0 && isBrickAtPos(ballX, ballY - ballRadius + ballSpeedY) == 1) {
+        ballY = Math.floor(ballY / brick_height) * brick_height + ballRadius;
+        ballSpeedY = 0;
     }
+    // bottom
+    if (ballSpeedY > 0 && isBrickAtPos(ballX, ballY + ballRadius + ballSpeedY) == 1) {
+        ballY = Math.floor(ballY / brick_height + 1) * brick_height - ballRadius;
+        ballSpeedY = 0;
+        onGround = true;
+    }
+    else if (isBrickAtPos(ballX, ballY + ballRadius + 2) == 0) {
+        onGround = false;
+    }
+    // left
+    if (ballSpeedX < 0 && isBrickAtPos(ballX - ballRadius + ballSpeedX, ballY) == 1) {
+        ballX = Math.floor(ballX / brick_width) * brick_width + ballRadius - 1;
+        ballSpeedX = 0;
+    }
+    // right
+    if (ballSpeedX > 0 && isBrickAtPos(ballX + ballRadius + ballSpeedX, ballY) == 1) {
+        ballX = Math.floor(ballX / brick_width + 1) * brick_width - ballRadius;
+        ballSpeedX = 0;
+    }
+
+
+    ballX += ballSpeedX;
+    ballY += ballSpeedY;
 }
 
 function brickTileToIndex(col, row) {
@@ -155,20 +195,20 @@ function cameraFollow() {
 
     if (playerDistFromCameraFocusX > PLAYER_DIST_FROM_CENTER_BEFORE_CAMERA_PAN_X) {
         if (cameraFocusCenterX < ballX) {
-            camPanX += ballSpeed;
+            camPanX += ballSpeedX;
         } else {
-            camPanX -= ballSpeed;
+            camPanX += ballSpeedX;
         }
     }
     if (playerDistFromCameraFocusY > PLAYER_DIST_FROM_CENTER_BEFORE_CAMERA_PAN_Y) {
         if (cameraFocusCenterY < ballY) {
-            camPanY += ballSpeed;
+            camPanY += ballSpeedY;
         } else {
-            camPanY -= ballSpeed;
+            camPanY += ballSpeedY;
         }
     }
 
-    // instantCamFollow();
+    instantCamFollow();
 
     // this next code blocks the game from showing out of bounds
     // (this isn't required, if you don't mind seeing beyond edges)
@@ -203,9 +243,8 @@ function drawBrickOnScrean() {
     var cameraStartX = Math.floor(Math.max(0, camPanX / brick_width + 0));
     var cameraStartY = Math.floor(Math.max(0, camPanY / brick_height + 0));
 
-    var cameraEndX = Math.floor(Math.min(brick_cols * brick_width, (camPanX + camW) / brick_width + 1));
-    var cameraEndY = Math.floor(Math.min(brick_rows * brick_height, (camPanY + camH) / brick_height + 1));
-    // width/2 is camera pos
+    var cameraEndX = Math.floor(Math.min(brick_cols, (camPanX + camW) / brick_width + 1));
+    var cameraEndY = Math.floor(Math.min(brick_rows , (camPanY + camH) / brick_height + 1));
 
     for (var row = cameraStartY; row < cameraEndY; row++) {
         for (var col = cameraStartX; col < cameraEndX; col++) {
