@@ -39,6 +39,7 @@ var ballX = 75;
 var ballY = 75;
 var ballSpeed = 5;
 
+var brick_color = { r: 100, g: 136, b: 153, a: 1 };
 var brick_width = 60;
 var brick_height = 60;
 var brick_cols = 20;
@@ -84,7 +85,7 @@ function draw(ctx) {
 
     //ctx.translate(-camPanX, -camPanY);
 
-    drawBrick();
+    //drawBrick();
     drawBrickOnScrean()
 
     colorCircle(ballX, ballY, 10, "#FFF");
@@ -202,15 +203,27 @@ function drawBrickOnScrean() {
     var cameraStartX = Math.floor(Math.max(0, camPanX / brick_width + 0));
     var cameraStartY = Math.floor(Math.max(0, camPanY / brick_height + 0));
 
-    var cameraEndX = Math.floor(Math.min((camW + camW / 2) / brick_width, (camPanX + camW) / brick_width + 1));
-    var cameraEndY = Math.floor(Math.min((camH + camH / 2) / brick_height, (camPanY + camH) / brick_height + 1));
+    var cameraEndX = Math.floor(Math.min(brick_cols, (camPanX + camW) / brick_width + 1));
+    var cameraEndY = Math.floor(Math.min(brick_rows, (camPanY + camH) / brick_height + 1));
     // width/2 is camera pos
 
     for (var row = cameraStartY; row < cameraEndY; row++) {
         for (var col = cameraStartX; col < cameraEndX; col++) {
 
-            if (getBrickAtTile(col, row)) {
-                colorRect(brick_width * col, brick_height * row, brick_width - brick_gap, brick_height - brick_gap, "rgba(100,136,153,1)");
+            if (getBrickAtTile(col, row) == 1) {
+                var center = {
+                    x: col * brick_width + brick_width / 2,
+                    y: row * brick_height + brick_height / 2
+                };
+                var dx = ballX - center.x;
+                var dy = ballY - center.y;
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                var maxDist = Math.sqrt(camW / 2 * camW / 2 + camH / 2 * camH / 2);
+
+                var alpha = Ratio(dist, 0, maxDist * 8 / 10, 1, 0);
+
+                var color = getRGBA(brick_color.r, brick_color.g, brick_color.b, alpha);
+                colorRect(brick_width * col, brick_height * row, brick_width - brick_gap, brick_height - brick_gap, color);
             }
         }
     }
@@ -237,6 +250,15 @@ function colorCircle(x, y, r, color) {
 function colorText(showText, x, y, color) {
     ctx.fillStyle = color;
     ctx.fillText(showText, x, y);
+}
+function getRGBA(r, g, b, a) {
+    return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+}
+function Ratio(v, n1, n2, m1, m2) {
+    //if (v < n1 || v > n2) return 0;//V 不在n1~n2中
+    var x = 0;
+    x = (v * (m2 - m1) - n1 * m2 + n2 * m1) / (n2 - n1);
+    return x;
 }
 
 //---loop---
